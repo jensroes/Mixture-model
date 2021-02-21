@@ -24,7 +24,7 @@ parameters {
 	real<lower=0> sigma;		// residual sd
 
 	real<lower=0> sigma_diff;
-	simplex[2] theta[2]; //probability of extreme values
+	vector[2] theta;
 
 	// For random effects
 	vector[S] u; //subject intercepts
@@ -39,16 +39,17 @@ transformed parameters{
   real<lower=0> mu[N];
 	real<lower=0> sigmap_e;
 	real<lower=0> sigma_e;
+	vector[2] prob = inv_logit(theta);
 	matrix[2,2] log_theta;
 	matrix[N,2] log_theta_condition;
 
   sigmap_e = sigma + sigma_diff;
   sigma_e = sigma - sigma_diff;
 
-	log_theta[1, 1] = log(theta[1,1]);
-  log_theta[1, 2] = log1m(theta[1,1]);
-	log_theta[2, 1] = log(theta[2,1]);
-  log_theta[2, 2] = log1m(theta[2,1]);
+	log_theta[1, 1] = log_inv_logit(theta[1]);
+  log_theta[1, 2] = log1m_inv_logit(theta[1]);
+	log_theta[2, 1] = log_inv_logit(theta[2]);
+  log_theta[2, 2] = log1m_inv_logit(theta[2]);
 
 
   for(n in 1:N){
@@ -69,8 +70,7 @@ model {
   sigma_diff ~ normal(0,1);
   sigma ~ cauchy(0, 2.5);
   
-  theta[1] ~ beta(1,1);
-  theta[2] ~ beta(1,1);
+  theta ~ normal(0, 1);
 
   // REs priors
   sigma_u ~ normal(0,2.5);
@@ -90,7 +90,7 @@ model {
 
 
 generated quantities{
-  real log_lik[N];
+  vector[N] log_lik;
 	vector[N] y_tilde;
   real<lower=0,upper=1> theta_long; 
   real beta2 = beta + delta;
@@ -101,7 +101,7 @@ generated quantities{
                   log_theta_condition[n,1] + lognormal_lpdf(y[n] | mu[n] + delta, sigmap_e), 
                   log_theta_condition[n,2] + lognormal_lpdf(y[n] | mu[n], sigma_e)
           );
-    	    theta_long = bernoulli_rng(theta[condition[n],1]); 
+    	    theta_long = bernoulli_rng(prob[condition[n]]); 
           if(theta_long) { 
               y_tilde[n] = lognormal_rng(mu[n] + delta, sigmap_e);
           }
